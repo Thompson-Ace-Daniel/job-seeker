@@ -22,7 +22,7 @@ export function RecommendationsPage() {
     if (view === 'Remote') filtered = filtered.filter((job) => job.jobLocation.toLowerCase().includes('remote'))
     if (view === 'Full-time') filtered = filtered.filter((job) => job.employmentType === 'Full-time')
     if (view === 'Strong matches') filtered = filtered.filter((job) => job.matchScore >= 55)
-    return [...filtered].sort((a, b) => sort === 'Match score' ? b.matchScore - a.matchScore : sort === 'Newest' ? b.jobId.localeCompare(a.jobId) : b.matchScore - a.matchScore)
+    return [...filtered].sort((a, b) => sort === 'Newest' ? b.jobId.localeCompare(a.jobId) : a.matchScore - b.matchScore)
   }, [recommendations, sort, view])
   const views = ['All matches', 'Strong matches', 'Remote', 'Full-time']
   const refreshJobs = useAppStore((state) => state.refreshJobs)
