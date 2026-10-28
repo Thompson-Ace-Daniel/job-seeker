@@ -9,6 +9,8 @@ npm install
 npm run dev
 ```
 
+Vercel deployments use `vercel.json` for direct-link and refresh support on React Router routes. The `/api/jobicy` serverless function forwards supported search filters to Jobicy, so live keyword searches work in production as well as during local development.
+
 Use **Explore the demo** on the sign-in page to open the sample workspace. You can also sign in with `demo@jobrec.ai` and password `findyourfit`.
 
 ## Job feeds
