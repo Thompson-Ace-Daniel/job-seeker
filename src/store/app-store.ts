@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 import { mockJobs } from '../data/jobs'
 import { fetchJobs } from '../services/jobs'
-import type { Account, ApplicationStatus, Job, JobApplication, UserProfile } from '../types'
+import type { Account, ApplicationStatus, Employer, Job, JobApplication, UserProfile } from '../types'
 
 type ToastKind = 'success' | 'error' | 'info'
 interface Toast { id: string; message: string; kind: ToastKind }
@@ -10,7 +10,10 @@ interface Toast { id: string; message: string; kind: ToastKind }
 interface AppState {
   accounts: Account[]
   activeUserId: string | null
+  activeAdmin: boolean
+  employers: Employer[]
   jobs: Job[]
+  removedVacancyIds: string[]
   isFetchingJobs: boolean
   applications: JobApplication[]
   darkMode: boolean
@@ -18,6 +21,8 @@ interface AppState {
   getActiveAccount: () => Account | undefined
   signIn: (email: string, password: string) => boolean
   signInDemo: () => void
+  signInAdmin: (email: string, password: string) => boolean
+  signOutAdmin: () => void
   register: (email: string, password: string, fullName: string) => boolean
   signOut: () => void
   updateProfile: (profile: UserProfile) => void
@@ -26,6 +31,13 @@ interface AppState {
   refreshJobs: () => Promise<void>
   applyForJob: (job: Job) => boolean
   updateApplicationStatus: (id: string, status: ApplicationStatus) => void
+  setAccountActive: (userId: string, active: boolean) => void
+  removeAccount: (userId: string) => void
+  saveEmployer: (employer: Employer) => void
+  removeEmployer: (employerId: string) => void
+  toggleEmployer: (employerId: string) => void
+  saveVacancy: (job: Job) => void
+  removeVacancy: (jobId: string) => void
   toggleTheme: () => void
   notify: (message: string, kind?: ToastKind) => void
   dismissToast: (id: string) => void
@@ -44,18 +56,32 @@ const demoAccount: Account = {
   },
 }
 
+const initialEmployers: Employer[] = [
+  { employerId: 'employer-northstar', companyName: 'Northstar Health', contactName: 'Jordan Lee', email: 'careers@northstar.example', industry: 'Healthcare Technology', status: 'Active', createdAt: '2026-08-12T12:00:00.000Z' },
+  { employerId: 'employer-atlantic', companyName: 'Atlantic Energy Services', contactName: 'Nneka Okafor', email: 'talent@atlanticenergy.example', industry: 'Oil & Gas', status: 'Active', createdAt: '2026-09-04T12:00:00.000Z' },
+  { employerId: 'employer-lattice', companyName: 'Lattice Labs', contactName: 'Morgan Reed', email: 'people@latticelabs.example', industry: 'Software', status: 'Paused', createdAt: '2026-09-18T12:00:00.000Z' },
+]
+const ADMIN_EMAIL = 'admin@jobrec.ai'
+const ADMIN_PASSWORD = 'admin1234'
+
 const newId = () => globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`
 
 export const useAppStore = create<AppState>()(persist((set, get) => ({
-  accounts: [demoAccount], activeUserId: null, jobs: mockJobs, isFetchingJobs: false, applications: [], darkMode: false, toasts: [],
+  accounts: [demoAccount], activeUserId: null, activeAdmin: false, employers: initialEmployers, jobs: mockJobs, removedVacancyIds: [], isFetchingJobs: false, applications: [], darkMode: false, toasts: [],
   getActiveAccount: () => get().accounts.find((account) => account.profile.userId === get().activeUserId),
   signIn: (email, password) => {
-    const match = get().accounts.find((account) => account.email.toLowerCase() === email.trim().toLowerCase() && account.password === password)
+    const match = get().accounts.find((account) => account.isActive !== false && account.email.toLowerCase() === email.trim().toLowerCase() && account.password === password)
     if (!match) return false
     set({ activeUserId: match.profile.userId })
     return true
   },
   signInDemo: () => set({ activeUserId: demoAccount.profile.userId }),
+  signInAdmin: (email, password) => {
+    if (email.trim().toLowerCase() !== ADMIN_EMAIL || password !== ADMIN_PASSWORD) return false
+    set({ activeAdmin: true, activeUserId: null })
+    return true
+  },
+  signOutAdmin: () => set({ activeAdmin: false }),
   register: (email, password, fullName) => {
     if (get().accounts.some((account) => account.email.toLowerCase() === email.trim().toLowerCase())) return false
     const id = newId()
@@ -73,7 +99,12 @@ export const useAppStore = create<AppState>()(persist((set, get) => ({
   refreshJobs: async () => {
     if (get().isFetchingJobs) return
     set({ isFetchingJobs: true })
-    try { set({ jobs: await fetchJobs() }) } catch { set({ jobs: mockJobs }) } finally { set({ isFetchingJobs: false }) }
+    try {
+      const managed = get().jobs.filter((job) => job.source === 'Admin posted')
+      const fetched = await fetchJobs()
+      const removed = new Set(get().removedVacancyIds)
+      set({ jobs: [...fetched.filter((job) => !removed.has(job.jobId) && !managed.some((posted) => posted.jobId === job.jobId)), ...managed] })
+    } catch { const removed = new Set(get().removedVacancyIds); set({ jobs: [...mockJobs.filter((job) => !removed.has(job.jobId)), ...get().jobs.filter((job) => job.source === 'Admin posted')] }) } finally { set({ isFetchingJobs: false }) }
   },
   applyForJob: (job) => {
     const account = get().getActiveAccount()
@@ -84,6 +115,13 @@ export const useAppStore = create<AppState>()(persist((set, get) => ({
     return true
   },
   updateApplicationStatus: (id, status) => set((state) => ({ applications: state.applications.map((application) => application.id === id ? { ...application, status } : application) })),
+  setAccountActive: (userId, active) => set((state) => ({ accounts: state.accounts.map((account) => account.profile.userId === userId ? { ...account, isActive: active } : account) })),
+  removeAccount: (userId) => set((state) => ({ accounts: state.accounts.filter((account) => account.profile.userId !== userId), applications: state.applications.filter((application) => application.userId !== userId) })),
+  saveEmployer: (employer) => set((state) => ({ employers: [...state.employers.filter((item) => item.employerId !== employer.employerId), employer] })),
+  removeEmployer: (employerId) => set((state) => ({ employers: state.employers.filter((employer) => employer.employerId !== employerId) })),
+  toggleEmployer: (employerId) => set((state) => ({ employers: state.employers.map((employer) => employer.employerId === employerId ? { ...employer, status: employer.status === 'Active' ? 'Paused' : 'Active' } : employer) })),
+  saveVacancy: (job) => set((state) => ({ jobs: [...state.jobs.filter((item) => item.jobId !== job.jobId), job] })),
+  removeVacancy: (jobId) => set((state) => ({ jobs: state.jobs.filter((job) => job.jobId !== jobId), removedVacancyIds: [...new Set([...state.removedVacancyIds, jobId])] })),
   toggleTheme: () => set((state) => ({ darkMode: !state.darkMode })),
   notify: (message, kind = 'success') => {
     const id = newId()
@@ -94,5 +132,5 @@ export const useAppStore = create<AppState>()(persist((set, get) => ({
 }), {
   name: 'jobrec-ai-v1',
   storage: createJSONStorage(() => localStorage),
-  partialize: (state) => ({ accounts: state.accounts, activeUserId: state.activeUserId, jobs: state.jobs, applications: state.applications, darkMode: state.darkMode }),
+  partialize: (state) => ({ accounts: state.accounts, activeUserId: state.activeUserId, activeAdmin: state.activeAdmin, employers: state.employers, jobs: state.jobs, removedVacancyIds: state.removedVacancyIds, applications: state.applications, darkMode: state.darkMode }),
 }))

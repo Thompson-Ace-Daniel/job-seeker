@@ -20,7 +20,18 @@ export interface UserProfile {
 export interface Account {
   email: string
   password: string
+  isActive?: boolean
   profile: UserProfile
+}
+
+export interface Employer {
+  employerId: string
+  companyName: string
+  contactName: string
+  email: string
+  industry: string
+  status: 'Active' | 'Paused'
+  createdAt: string
 }
 
 export interface Job {

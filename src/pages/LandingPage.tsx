@@ -40,6 +40,6 @@ export function LandingPage() {
       </div><Link to="/register" className="how-cta">Start exploring <ChevronRight size={16} /></Link></section>
       <section id="why-jobrec" className="bottom-cta"><div className="cta-stars">✦</div><div><span className="section-overline">A LITTLE MORE YOU IN EVERY SEARCH</span><h2>Ready to find your kind of work?</h2><p>Your next chapter is closer than you think.</p></div><Link to="/register"><Button size="lg" variant="secondary">Create your free profile <ArrowRight size={17} /></Button></Link></section>
     </main>
-    <footer className="landing-footer"><BrandMark /><span>Made for the work you want to do.</span><span>© 2026 JobRec AI</span></footer>
+    <footer className="landing-footer"><BrandMark /><span>Made for the work you want to do.</span><span>© 2026 JobRec AI</span><Link to="/admin/login">Administrator</Link></footer>
   </div>
 }
